@@ -366,10 +366,7 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
 
     @Override
     public boolean isShown() {
-        if (handler == null || !isViewReady()) {
-            return false;
-        }
-        return handler.getVisibility();
+        return !(handler == null || !isViewReady()) && handler.getVisibility();
     }
 
     @Override
