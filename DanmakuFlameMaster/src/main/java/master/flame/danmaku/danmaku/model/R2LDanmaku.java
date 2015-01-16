@@ -17,9 +17,12 @@
 package master.flame.danmaku.danmaku.model;
 
 
+
 public class R2LDanmaku extends BaseDanmaku {
     
     protected static final long MAX_RENDERING_TIME = 100;
+    
+    protected static final long CORDON_RENDERING_TIME = 40;
 
     protected float x = 0;
 
@@ -43,7 +46,7 @@ public class R2LDanmaku extends BaseDanmaku {
             long currMS = mTimer.currMillisecond;
             long deltaDuration = currMS - time;
             if (deltaDuration > 0 && deltaDuration < duration.value) {
-                this.x = getStableLeft(displayer, currMS);
+                this.x = getAccurateLeft(displayer, currMS);
                 if (!this.isShown()) {
                     this.y = y;
                     this.setVisibility(true);
@@ -51,30 +54,9 @@ public class R2LDanmaku extends BaseDanmaku {
                 mLastTime = currMS;
                 return;
             }
-            this.setVisibility(false);
             mLastTime = currMS;
         }
-        this.x = displayer.getWidth();
-    }
-
-    protected float getStableLeft(IDisplayer displayer, long currTime) {
-        long elapsedTime = currTime - time;
-        if (elapsedTime >= duration.value) {
-            return -paintWidth;
-        }
-        
-        if (Math.abs(mLastTime - currTime) > MAX_RENDERING_TIME){
-            return getAccurateLeft(displayer, currTime);
-        }
-        
-        long averageRenderingTime = displayer.getAverageRenderingTime();
-        float layoutCount = (duration.value - elapsedTime) / (float) averageRenderingTime;
-        float stepX = (this.x + paintWidth) / layoutCount;
-
-        if (stepX < mStepX * 16) {
-            stepX = mStepX * 16;
-        }
-        return this.x - stepX;
+        this.setVisibility(false);
     }
 
     protected float getAccurateLeft(IDisplayer displayer, long currTime) {
@@ -131,7 +113,6 @@ public class R2LDanmaku extends BaseDanmaku {
         super.measure(displayer);
         mDistance = (int) (displayer.getWidth() + paintWidth);
         mStepX = mDistance / (float) duration.value;
-        this.x = displayer.getWidth();
     }
 
 }

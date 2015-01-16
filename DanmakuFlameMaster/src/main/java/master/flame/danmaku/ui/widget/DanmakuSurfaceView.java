@@ -26,16 +26,17 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 
-import java.util.LinkedList;
-import java.util.Locale;
-
+import master.flame.danmaku.controller.DanmakuFilters;
 import master.flame.danmaku.controller.DrawHandler;
 import master.flame.danmaku.controller.DrawHandler.Callback;
-import master.flame.danmaku.controller.DanmakuFilters;
 import master.flame.danmaku.controller.DrawHelper;
 import master.flame.danmaku.controller.IDanmakuView;
 import master.flame.danmaku.danmaku.model.BaseDanmaku;
 import master.flame.danmaku.danmaku.parser.BaseDanmakuParser;
+import master.flame.danmaku.danmaku.renderer.IRenderer.RenderingState;
+
+import java.util.LinkedList;
+import java.util.Locale;
 
 public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, SurfaceHolder.Callback,
         View.OnClickListener {
@@ -69,6 +70,9 @@ public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, Sur
 
     private void init() {
         setZOrderMediaOverlay(true);
+        setWillNotCacheDrawing(true);
+        setDrawingCacheEnabled(false);
+        setWillNotDraw(true);
         mSurfaceHolder = getHolder();
         mSurfaceHolder.addCallback(this);
         mSurfaceHolder.setFormat(PixelFormat.TRANSPARENT);
@@ -94,8 +98,22 @@ public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, Sur
     }
 
     public void addDanmaku(BaseDanmaku item) {
-        if(handler != null){
+        if (handler != null) {
             handler.addDanmaku(item);
+        }
+    }
+    
+    @Override
+    public void removeAllDanmakus() {
+        if (handler != null) {
+            handler.removeAllDanmakus();
+        }
+    }
+    
+    @Override
+    public void removeAllLiveDanmakus() {
+        if (handler != null) {
+            handler.removeAllLiveDanmakus();
         }
     }
 
@@ -108,17 +126,19 @@ public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, Sur
 
     @Override
     public void surfaceCreated(SurfaceHolder surfaceHolder) {
-    	isSurfaceCreated = true;
-    	Canvas canvas = surfaceHolder.lockCanvas();
-    	if(canvas!=null){
-    	    DrawHelper.clearCanvas(canvas);
-    	    surfaceHolder.unlockCanvasAndPost(canvas);
-    	}
+        isSurfaceCreated = true;
+        Canvas canvas = surfaceHolder.lockCanvas();
+        if (canvas != null) {
+            DrawHelper.clearCanvas(canvas);
+            surfaceHolder.unlockCanvasAndPost(canvas);
+        }
     }
 
     @Override
-    public void surfaceChanged(SurfaceHolder surfaceHolder, int i, int i2, int i3) {
-        isSurfaceCreated = true;
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        if (handler != null) {
+            handler.notifyDispSizeChanged(width, height);
+        }
     }
 
     @Override
@@ -159,29 +179,23 @@ public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, Sur
             mDrawThread.quit();
             mDrawThread = null;
         }
-        int priority = Thread.NORM_PRIORITY;
-        String threadName = "DFM Drawing thread";
+        
+        int priority;
         switch (type) {
-            case THREAD_TYPE_MAIN_THREAD: {                
+            case THREAD_TYPE_MAIN_THREAD:
                 return Looper.getMainLooper();
-            }
-            case THREAD_TYPE_HIGH_PRIORITY: {
-                priority = Thread.MAX_PRIORITY;
-                threadName += Thread.MAX_PRIORITY;
-            }
+            case THREAD_TYPE_HIGH_PRIORITY:
+                priority = android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY;
                 break;
-            case THREAD_TYPE_NORMAL_PRIORITY: {
-                priority = Thread.NORM_PRIORITY;
-                threadName += Thread.NORM_PRIORITY;
-            }
+            case THREAD_TYPE_LOW_PRIORITY:
+                priority = android.os.Process.THREAD_PRIORITY_LOWEST;
                 break;
-            case THREAD_TYPE_LOW_PRIORITY: {
-                priority = Thread.MIN_PRIORITY;
-                threadName += Thread.MIN_PRIORITY;
-            }
+            case THREAD_TYPE_NORMAL_PRIORITY:
+            default:
+                priority = android.os.Process.THREAD_PRIORITY_DEFAULT;
                 break;
         }
-        
+        String threadName = "DFM Drawing thread #"+priority;
         mDrawThread = new HandlerThread(threadName, priority);
         mDrawThread.start();
         return mDrawThread.getLooper();
@@ -232,13 +246,15 @@ public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, Sur
         long dtime = 0;
         Canvas canvas = mSurfaceHolder.lockCanvas();
         if (canvas != null){
-            if(handler != null){
-                handler.draw(canvas);
+            if (handler != null) {
+                RenderingState rs = handler.draw(canvas);
                 if (mShowFps) {
-                    if(mDrawTimes == null) mDrawTimes = new LinkedList<Long>();
-                    dtime = System.currentTimeMillis() - stime;  //not so accurate
-                    String fps = String.format(Locale.getDefault(), "%02d MS, fps %.2f", dtime,
-                            fps());
+                    if (mDrawTimes == null)
+                        mDrawTimes = new LinkedList<Long>();
+                    dtime = System.currentTimeMillis() - stime;
+                    String fps = String.format(Locale.getDefault(),
+                            "fps %.2f,time:%d s,cache:%d,miss:%d", fps(),
+                            handler.getCurrentTime() / 1000, rs.cacheHitCount, rs.cacheMissCount);
                     DrawHelper.drawFPS(canvas, fps);
                 }
             }
@@ -382,5 +398,12 @@ public class DanmakuSurfaceView extends SurfaceView implements IDanmakuView, Sur
         mDrawingThreadType  = type;
     }
 
+    @Override
+    public long getCurrentTime() {
+        if (handler != null) {
+            return handler.getCurrentTime();
+        }
+        return 0;
+    }
 
 }

@@ -18,9 +18,11 @@ package master.flame.danmaku.danmaku.model;
 
 public interface IDanmakus {
 
-    public void addItem(BaseDanmaku item);
+    public boolean addItem(BaseDanmaku item);
 
-    public void removeItem(BaseDanmaku item);
+    public boolean removeItem(BaseDanmaku item);
+    
+    public IDanmakus subnew(long startTime, long endTime);
 
     public IDanmakus sub(long startTime, long endTime);
 
@@ -35,5 +37,7 @@ public interface IDanmakus {
     public IDanmakuIterator iterator();
     
     public boolean contains(BaseDanmaku item);
+
+    public boolean isEmpty();
 
 }

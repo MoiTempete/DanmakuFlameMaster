@@ -37,17 +37,16 @@ public class L2RDanmaku extends R2LDanmaku {
                 mLastTime = currMS;
                 return;
             }
-            this.setVisibility(false);
             mLastTime = currMS;
         }
-        this.x = -paintWidth;
+        this.setVisibility(false);
     }
     
     @Override
     public float[] getRectAtTime(IDisplayer displayer, long time) {
         if (!isMeasured())
             return null;
-        float left = getStableLeft(displayer, time);
+        float left = getAccurateLeft(displayer, time);
         if (RECT == null) {
             RECT = new float[4];
         }
@@ -56,28 +55,6 @@ public class L2RDanmaku extends R2LDanmaku {
         RECT[2] = left + paintWidth;
         RECT[3] = y + paintHeight;
         return RECT;
-    }
-    
-    protected float getStableLeft(IDisplayer displayer, long currTime) {
-        long elapsedTime = currTime - time;
-        if (elapsedTime >= duration.value) {
-            return displayer.getWidth();
-        }
-        
-        if (Math.abs(mLastTime - currTime) > MAX_RENDERING_TIME){
-            return getAccurateLeft(displayer, currTime);
-        }
-
-        long averageRenderingTime = displayer.getAverageRenderingTime();
-        float layoutCount = (duration.value - elapsedTime)
-                / (float) averageRenderingTime;
-        float stepX = (displayer.getWidth() - (this.x + paintWidth)) / layoutCount;
-
-        if (stepX < mStepX * 16) {
-            stepX = mStepX * 16;
-        }
-
-        return this.x + stepX;
     }
 
     protected float getAccurateLeft(IDisplayer displayer, long currTime) {
@@ -111,12 +88,6 @@ public class L2RDanmaku extends R2LDanmaku {
     @Override
     public int getType() {
         return TYPE_SCROLL_LR;
-    }
-    
-    @Override
-    public void measure(IDisplayer displayer) {
-        super.measure(displayer);
-        this.x = -paintWidth;
     }
 
 }

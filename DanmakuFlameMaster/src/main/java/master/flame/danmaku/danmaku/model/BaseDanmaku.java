@@ -92,7 +92,7 @@ public abstract class BaseDanmaku {
     public int padding = 0;
     
     /**
-     * 弹幕优先级,0为低优先级,>0为高优先级
+     * 弹幕优先级,0为低优先级,>0为高优先级不会被过滤器过滤
      */
     public byte priority = 0;
 
@@ -145,6 +145,16 @@ public abstract class BaseDanmaku {
      * 弹幕发布者id, 0表示游客
      */
     public int userId = 0;
+    
+    /**
+     * 弹幕发布者id
+     */
+    public String userHash;
+    
+    /**
+     * 是否游客
+     */
+    public boolean isGuest;
 
     /**
      * 计时
@@ -164,8 +174,8 @@ public abstract class BaseDanmaku {
         this.duration = duration;
     }
 
-    public void draw(IDisplayer displayer) {
-        displayer.draw(this);
+    public int draw(IDisplayer displayer) {
+        return displayer.draw(this);
     }
 
     public boolean isMeasured() {
@@ -202,6 +212,10 @@ public abstract class BaseDanmaku {
     public boolean isOutside(long ctime) {
         long dtime = ctime - time;
         return dtime <= 0 ||  dtime >= duration.value;
+    }
+    
+    public boolean isLate() {
+        return mTimer == null || mTimer.currMillisecond < time;
     }
 
     public void setVisibility(boolean b) {

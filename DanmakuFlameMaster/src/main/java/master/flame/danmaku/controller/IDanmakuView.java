@@ -36,7 +36,17 @@ public interface IDanmakuView {
     
     public void addDanmaku(BaseDanmaku item);
     
+    public void removeAllDanmakus();
+    
+    public void removeAllLiveDanmakus();
+    
     public void setCallback(Callback callback);
+    
+    /**
+     * for getting the accurate play-time. use this method intead of parser.getTimer().currMillisecond
+     * @return
+     */
+    public long getCurrentTime();
     
     
     // ------------- Android View方法  --------------------

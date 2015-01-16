@@ -28,15 +28,17 @@ import android.util.AttributeSet;
 import android.view.TextureView;
 import android.view.View;
 
-import java.util.Locale;
-
+import master.flame.danmaku.controller.DanmakuFilters;
 import master.flame.danmaku.controller.DrawHandler;
 import master.flame.danmaku.controller.DrawHandler.Callback;
-import master.flame.danmaku.controller.DanmakuFilters;
 import master.flame.danmaku.controller.DrawHelper;
 import master.flame.danmaku.controller.IDanmakuView;
 import master.flame.danmaku.danmaku.model.BaseDanmaku;
 import master.flame.danmaku.danmaku.parser.BaseDanmakuParser;
+import master.flame.danmaku.danmaku.renderer.IRenderer.RenderingState;
+
+import java.util.LinkedList;
+import java.util.Locale;
 
 /**
  * DanmakuTextureView需要开启GPU加速才能显示弹幕
@@ -75,7 +77,11 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
 
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void init() {
+        setLayerType(View.LAYER_TYPE_HARDWARE, null);
         setOpaque(false);
+        setWillNotCacheDrawing(true);
+        setDrawingCacheEnabled(false);
+        setWillNotDraw(true);
         setSurfaceTextureListener(this);
         setOnClickListener(this);
     }
@@ -103,6 +109,20 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
             handler.addDanmaku(item);
         }
     }
+    
+    @Override
+    public void removeAllDanmakus() {
+        if (handler != null) {
+            handler.removeAllDanmakus();
+        }
+    }
+    
+    @Override
+    public void removeAllLiveDanmakus() {
+        if (handler != null) {
+            handler.removeAllLiveDanmakus();
+        }
+    }
 
     public void setCallback(Callback callback) {
         mCallback = callback;
@@ -124,7 +144,9 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
 
     @Override
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-        isSurfaceCreated = true;
+        if (handler != null) {
+            handler.notifyDispSizeChanged(width, height);
+        }
     }
 
     @Override
@@ -164,29 +186,23 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
             mDrawThread.quit();
             mDrawThread = null;
         }
-        int priority = Thread.NORM_PRIORITY;
-        String threadName = "DFM Drawing thread";
+        
+        int priority;
         switch (type) {
-            case THREAD_TYPE_MAIN_THREAD: {                
+            case THREAD_TYPE_MAIN_THREAD:
                 return Looper.getMainLooper();
-            }
-            case THREAD_TYPE_HIGH_PRIORITY: {
-                priority = Thread.MAX_PRIORITY;
-                threadName += Thread.MAX_PRIORITY;
-            }
+            case THREAD_TYPE_HIGH_PRIORITY:
+                priority = android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY;
                 break;
-            case THREAD_TYPE_NORMAL_PRIORITY: {
-                priority = Thread.NORM_PRIORITY;
-                threadName += Thread.NORM_PRIORITY;
-            }
+            case THREAD_TYPE_LOW_PRIORITY:
+                priority = android.os.Process.THREAD_PRIORITY_LOWEST;
                 break;
-            case THREAD_TYPE_LOW_PRIORITY: {
-                priority = Thread.MIN_PRIORITY;
-                threadName += Thread.MIN_PRIORITY;
-            }
+            case THREAD_TYPE_NORMAL_PRIORITY:
+            default:
+                priority = android.os.Process.THREAD_PRIORITY_DEFAULT;
                 break;
         }
-        
+        String threadName = "DFM Drawing thread #"+priority;
         mDrawThread = new HandlerThread(threadName, priority);
         mDrawThread.start();
         return mDrawThread.getLooper();
@@ -214,7 +230,20 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
     public void showFPS(boolean show) {
         mShowFps = show;
     }
-
+    private static final int MAX_RECORD_SIZE = 50;
+    private static final int ONE_SECOND = 1000;
+    private LinkedList<Long> mDrawTimes;
+    private float fps() {
+        long lastTime = System.currentTimeMillis();
+        mDrawTimes.addLast(lastTime);
+        float dtime = lastTime - mDrawTimes.getFirst();
+        int frames = mDrawTimes.size();
+        if (frames > MAX_RECORD_SIZE) {
+            mDrawTimes.removeFirst();
+        }
+        return dtime > 0 ? mDrawTimes.size() * ONE_SECOND / dtime : 0.0f;
+    }
+    
     @Override
     public synchronized long drawDanmakus() {
         if (!isSurfaceCreated)
@@ -226,11 +255,14 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
         Canvas canvas = lockCanvas();
         if (canvas != null) {
             if (handler != null) {
-                handler.draw(canvas);
+                RenderingState rs = handler.draw(canvas);
                 if (mShowFps) {
+                    if (mDrawTimes == null)
+                        mDrawTimes = new LinkedList<Long>();
                     dtime = System.currentTimeMillis() - stime;
-                    String fps = String.format(Locale.getDefault(), "%02d MS, fps %.2f", dtime,
-                            1000 / (float) dtime);
+                    String fps = String.format(Locale.getDefault(),
+                            "fps %.2f,time:%d s,cache:%d,miss:%d", fps(),
+                            handler.getCurrentTime() / 1000, rs.cacheHitCount, rs.cacheMissCount);
                     DrawHelper.drawFPS(canvas, fps);
                 }
             }
@@ -366,12 +398,23 @@ public class DanmakuTextureView extends TextureView implements IDanmakuView,
 
     @Override
     public boolean isShown() {
-        return !(handler == null || !isViewReady()) && handler.getVisibility();
+        if (handler == null || !isViewReady()) {
+            return false;
+        }
+        return handler.getVisibility();
     }
 
     @Override
     public void setDrawingThreadType(int type) {
         mDrawingThreadType = type;
+    }
+
+    @Override
+    public long getCurrentTime() {
+        if (handler != null) {
+            return handler.getCurrentTime();
+        }
+        return 0;
     }
 
 }
